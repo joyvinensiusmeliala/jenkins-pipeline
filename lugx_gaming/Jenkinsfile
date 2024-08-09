@@ -1,0 +1,50 @@
+pipeline {
+    agent any
+    environment {
+        REPO = 'joyvinensius/lugx_gaming'
+        DOCKER_REGISTRY = 'joyvinensius/lugx_gaming'
+        KUBERNETES_NAMESPACE = 'lugx-gaming'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/joyvinensiusmeliala/jenkins-pipeline.git'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    dockerImage = docker.build("${DOCKER_REGISTRY}:${env.BUILD_NUMBER}")
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub') {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Menggunakan kredensial kubeconfig
+                    withKubeConfig(credentialsId: 'kubernetes') {
+                        // Deploy aplikasi
+                        sh "sed 's|{{BUILD_NUMBER}}|${env.BUILD_NUMBER}|g' lugx_gaming/kubernetes/deployment.yaml | kubectl apply -f - --namespace=${KUBERNETES_NAMESPACE}"
+                        // Terapkan LoadBalancer service
+                        sh "kubectl apply -f lugx_gaming/kubernetes/service.yaml --namespace=${KUBERNETES_NAMESPACE}"
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
+
