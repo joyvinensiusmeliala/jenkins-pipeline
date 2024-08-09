@@ -1,49 +1,46 @@
 pipeline {
     agent any
-    
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub')
-        DOCKER_IMAGE = 'joyvinensiusmeliala/luxg_gaming'
-        GIT_REPO = 'https://github.com/joyvinensiusmeliala/jenkins-pipeline.git'
-        BRANCH = 'main'
+        REPO = 'joyvinensius/lugx_gaming'
+        DOCKER_REGISTRY = 'joyvinensius/lugx_gaming'
+        KUBERNETES_NAMESPACE = 'lugx-gaming'
     }
-    
     stages {
         stage('Checkout') {
             steps {
-                git branch: "${BRANCH}", url: "${GIT_REPO}"
+                git branch: 'main', url: 'https://github.com/joyvinensiusmeliala/jenkins-pipeline.git'
             }
         }
-        
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}")
+                    dockerImage = docker.build("${DOCKER_REGISTRY}:${env.BUILD_NUMBER}")
                 }
             }
         }
-        
-        stage('Login to DockerHub') {
+        stage('Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', 'DOCKER_HUB_CREDENTIALS') {
-                        sh "echo 'Logged in to DockerHub'"
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub') {
+                        dockerImage.push()
                     }
                 }
             }
         }
-        
-        stage('Push Docker Image') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', 'DOCKER_HUB_CREDENTIALS') {
-                        docker.image("${DOCKER_IMAGE}").push()
+                    // Menggunakan kredensial kubeconfig
+                    withKubeConfig(credentialsId: 'kubernetes') {
+                        // Deploy aplikasi
+                        sh "sed 's|{{BUILD_NUMBER}}|${env.BUILD_NUMBER}|g' lugx_gaming/kubernetes/deployment.yaml | kubectl apply -f - --namespace=${KUBERNETES_NAMESPACE}"
+                        // Terapkan LoadBalancer service
+                        sh "kubectl apply -f lugx_gaming/kubernetes/service.yaml --namespace=${KUBERNETES_NAMESPACE}"
                     }
                 }
             }
         }
     }
-    
     post {
         always {
             cleanWs()
