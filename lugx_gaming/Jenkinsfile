@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/joyvinensiusmeliala/jenkins-pipeline.git'
+                git branch: 'main', url: 'https://github.com/joyvinensiusmeliala/jenkins-pipeline.git'
             }
         }
         stage('Build Docker Image') {
